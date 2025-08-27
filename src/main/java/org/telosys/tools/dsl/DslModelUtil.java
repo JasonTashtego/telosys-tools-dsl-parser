@@ -16,9 +16,14 @@
 package org.telosys.tools.dsl;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.List;
 
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.telosys.tools.commons.DirUtil;
 import org.telosys.tools.commons.FileUtil;
 import org.telosys.tools.commons.StrUtil;
@@ -109,36 +114,70 @@ public class DslModelUtil {
     	return getEntitiesFromModelFolder(modelFolder, ENTITY_NAME);
     }
     
-    private static List<String> getEntitiesFromModelFolder(File modelFolder, int expectedName) {  // v 3.4.0
-    	if ( ! modelFolder.exists() ) {
-            String textError = "Model folder '"+ modelFolder.getAbsolutePath() + "' not found";
-            throw new RuntimeException(textError);
-    	}
-    	if ( ! modelFolder.isDirectory() ) {
-            String textError = "Model folder '"+ modelFolder.getAbsolutePath() + "' not a directory";
-            throw new RuntimeException(textError);
-    	}
-    	
-        List<String> entities = new LinkedList<>();
-        String[] allFiles = modelFolder.list();
-        for (String fileName : allFiles) {
-        	if ( fileName.endsWith(DslModelUtil.DOT_ENTITY)) {
-        		switch(expectedName) {
-        		case FULLPATH_NAME :
-        			entities.add(FileUtil.buildFilePath(modelFolder.getAbsolutePath(), fileName));
-        			break;
-        		case SIMPLE_NAME :
-        			entities.add(fileName) ;
-        			break;
-        		case ENTITY_NAME :
-        			entities.add(StrUtil.removeEnd(fileName, DslModelUtil.DOT_ENTITY)) ;
-        			break;
-        		}
-        	}
-        }
-        return entities;
-    }
-    
+//    private static List<String> getEntitiesFromModelFolder(File modelFolder, int expectedName) {  // v 3.4.0
+//    	if ( ! modelFolder.exists() ) {
+//            String textError = "Model folder '"+ modelFolder.getAbsolutePath() + "' not found";
+//            throw new RuntimeException(textError);
+//    	}
+//    	if ( ! modelFolder.isDirectory() ) {
+//            String textError = "Model folder '"+ modelFolder.getAbsolutePath() + "' not a directory";
+//            throw new RuntimeException(textError);
+//    	}
+//
+//        List<String> entities = new LinkedList<>();
+//        String[] allFiles = modelFolder.list();
+//        for (String fileName : allFiles) {
+//        	if ( fileName.endsWith(DslModelUtil.DOT_ENTITY)) {
+//        		switch(expectedName) {
+//        		case FULLPATH_NAME :
+//        			entities.add(FileUtil.buildFilePath(modelFolder.getAbsolutePath(), fileName));
+//        			break;
+//        		case SIMPLE_NAME :
+//        			entities.add(fileName) ;
+//        			break;
+//        		case ENTITY_NAME :
+//        			entities.add(StrUtil.removeEnd(fileName, DslModelUtil.DOT_ENTITY)) ;
+//        			break;
+//        		}
+//        	}
+//        }
+//        return entities;
+//    }
+
+	private static List<String> getEntitiesFromModelFolder(File modelFolder, int expectedName) {
+		if (!modelFolder.exists()) {
+			throw new RuntimeException("Model folder '" + modelFolder.getAbsolutePath() + "' not found");
+		} else if (!modelFolder.isDirectory()) {
+			throw new RuntimeException("Model folder '" + modelFolder.getAbsolutePath() + "' not a directory");
+		}
+
+		try (Stream<Path> paths = Files.walk(modelFolder.toPath())) {
+			return paths
+				.filter(Files::isRegularFile)                        // only files
+				.map(Path::toFile)
+				.filter(f -> f.getName().endsWith(".entity"))        // only *.entity
+				.map(f -> {
+					switch (expectedName) {
+						case 1:
+							return FileUtil.buildFilePath(
+								f.getParentFile().getAbsolutePath(),
+								f.getName());
+						case 2:
+							return f.getName();
+						case 3:
+							return StrUtil.removeEnd(f.getName(), ".entity");
+						default:
+							throw new IllegalArgumentException("Unexpected expectedName value: " + expectedName);
+					}
+				})
+				.collect(Collectors.toList());
+		} catch (IOException e) {
+			throw new RuntimeException("Error walking model folder: " + e.getMessage(), e);
+		}
+	}
+
+
+
     /**
      * Returns the entity file in the given model folder for the given entity name 
      * @param modelFolder
